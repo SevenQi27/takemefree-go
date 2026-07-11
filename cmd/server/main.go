@@ -34,6 +34,8 @@ func main() {
 	mux.HandleFunc("GET /api/activities/{id}", handler.GetActivityByID(pool))
 	mux.HandleFunc("PUT /api/activities/{id}", handler.UpdateActivityHandler(pool))
 	mux.HandleFunc("DELETE /api/activities/{id}", handler.DeleteActivityHandler(pool))
+	// 作业2：CloudMap 发现 → 调 Lambda（仅 ECS 部署形态生效）
+	mux.HandleFunc("GET /api/via-lambda", handler.ViaLambda)
 
 	port := os.Getenv("PORT")
 	if port == "" {
