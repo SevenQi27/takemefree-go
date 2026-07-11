@@ -28,7 +28,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", handler.Home(pool))
 	mux.HandleFunc("GET /healthz", handler.Healthz)
-	mux.HandleFunc("GET /api/activities", handler.Activities(pool))
+	// CRUD：端点与 Node 版 Lambda(src/lambda/app.ts) 一致
+	mux.HandleFunc("GET /api/activities", handler.ListActivities(pool))
+	mux.HandleFunc("POST /api/activities", handler.CreateActivityHandler(pool))
+	mux.HandleFunc("GET /api/activities/{id}", handler.GetActivityByID(pool))
+	mux.HandleFunc("PUT /api/activities/{id}", handler.UpdateActivityHandler(pool))
+	mux.HandleFunc("DELETE /api/activities/{id}", handler.DeleteActivityHandler(pool))
 
 	port := os.Getenv("PORT")
 	if port == "" {

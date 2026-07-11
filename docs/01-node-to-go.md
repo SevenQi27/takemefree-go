@@ -47,6 +47,25 @@
 - AC-006 北京+福利 → 空状态文案 ✓
 - 附加：`GET /api/activities` JSON 接口保留；`city=tokyo` 回退 shanghai；时间格式化三形态（同天补时刻/跨天日期区间/长期开放）与 format.ts 一致
 
+## CRUD 迁移（src/lambda/app.ts + activity-service.ts → crud.go）
+
+端点与响应形状与 Node 版完全一致：
+
+| 端点 | 语义 |
+|---|---|
+| `GET /api/activities` | 管理视角全量列表（含 hidden/draft），updated_at desc |
+| `GET/PUT/DELETE /api/activities/{id}` | 单条查/整行覆盖更新/删，404 = `{"error":"Activity not found."}` |
+| `POST /api/activities` | 创建，201；缺 title → 400 |
+
+迁移要点：
+
+- **宽容输入解析逐函数对应**：tags 接受数组或逗号串、坐标接受字符串或数字、reservationRequired 接受 bool 或 "true"/"on"——Go 里用 `any` 字段 + 类型断言实现 TS 的联合类型语义
+- **写入走 RETURNING**：创建/更新/删除都返回完整行，和 Drizzle `.returning()` 对齐
+- **顺手修正一处**：非法 uuid 文本（SQLSTATE 22P02）按 404 处理；Node 版这里会抛到 onError 变 500
+- Node 版每个操作前的 `ensureSchema()` 没有迁移——Go 版建表由 schema.sql 负责（本地 initdb / 上云跑迁移），运行时不做 DDL
+
+CRUD 冒烟验收（2026-07-11）：创建（宽容解析全命中）→ 查单条 → 更新+发布 → 缺 title 400 → 删除 → 删除后 404 → 非法 uuid 404 → 列表含 draft ✓
+
 ## 已知的种子数据小毛刺（非代码 bug）
 
 首张卡片 chips 出现两次"展览"和一个"免预约"标签：原种子的 tags 数组本身含 category 同名词和预约状态词，Node 版渲染同样重复。保留以维持与原版行为一致。
