@@ -26,7 +26,7 @@ func main() {
 	defer pool.Close()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", handler.Home)
+	mux.HandleFunc("GET /", handler.Home(pool))
 	mux.HandleFunc("GET /healthz", handler.Healthz)
 	mux.HandleFunc("GET /api/activities", handler.Activities(pool))
 

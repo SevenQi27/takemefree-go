@@ -1,6 +1,6 @@
 # 批次 1 实录：Node(Lambda+Hono+Drizzle) → Go 迁移
 
-> 作业 1：搭 Go 环境、Go 连数据库、迁移部分 Node 数据库代码、个人介绍前端。
+> 需求基线：specs/1.home-discovery（TakeMeFree 首页免费活动发现，F-001~F-007），不采用课堂作业的"个人介绍页"变体。
 > 本文是"从结果看过程"的对照笔记：每个决策写清楚为什么，以及私有化部署经验的对应物。
 
 ## 迁移对照表
@@ -11,7 +11,9 @@
 | `db/queries.ts` getActivities | `internal/db/activities.go` | ORM 链式调用 → 手写 SQL + `pgx.CollectRows` 扫描进 struct |
 | `db/schema.ts`（drizzle 定义） | `schema.sql` | ORM schema → 纯 DDL；索引三条原样平移 |
 | `lib/constants.ts` 白名单归一化 | `internal/handler/api.go` | 逻辑逐行对应：非法 city 回退 shanghai，非法 category 不过滤 |
-| Next.js 前端 | `html/template` + `go:embed` | 一个二进制同时出 API 和页面，为容器化铺路 |
+| Next.js 首页（Server Component + 客户端筛选） | `html/template` + `go:embed`，SSR 直出 | 城市/分类切换从客户端路由降级为带参链接——无 JS 依赖，语义相同 |
+| `lib/format.ts` formatActivityTime | `home.go` 同名函数 | Intl.DateTimeFormat → time.Format；`import _ "time/tzdata"` 内嵌时区（distroless 镜像里没有系统 zoneinfo） |
+| `components/ActivityCard.tsx` | home.html 模板 article 块 | 标题/时间/地点/标签/预约徽章逐项对应 |
 | Hono on Lambda | `net/http` 标准库（Go 1.22+ 方法路由） | 无框架；优雅退出监听 SIGTERM（Fargate 滚动部署需要） |
 
 ## 关键决策
@@ -35,10 +37,16 @@
 | .env 配置文件 | 本地仍是 env；上云后换 SSM 注入（批次 2） |
 | systemd 管进程 | 本地裸跑；上云后 ECS Service 管（批次 2） |
 
-## 验收记录（2026-07-11）
+## 验收记录（2026-07-11，对照 requirements.md 的 AC）
 
-- `GET /healthz` → 200 ok
-- `GET /api/activities`（默认上海）→ 4 条，**过期与 draft 的种子被正确排除**
-- `GET /api/activities?city=shanghai&category=exhibition` → 1 条
-- `GET /api/activities?city=tokyo` → 回退 shanghai
-- `GET /` → SevenQi27 个人介绍页渲染正常
+- AC-001 首页卡片含标题/时间/地点/标签/预约徽章 ✓
+- AC-002 切换北京只显示北京活动 ✓
+- AC-003 分类过滤 + "全部"清除 ✓
+- AC-004 过期/draft 种子不出现（grep 计数 0）✓
+- AC-005 375px 视口单列布局、首屏含筛选与列表、无横滚（浏览器实测截图）✓
+- AC-006 北京+福利 → 空状态文案 ✓
+- 附加：`GET /api/activities` JSON 接口保留；`city=tokyo` 回退 shanghai；时间格式化三形态（同天补时刻/跨天日期区间/长期开放）与 format.ts 一致
+
+## 已知的种子数据小毛刺（非代码 bug）
+
+首张卡片 chips 出现两次"展览"和一个"免预约"标签：原种子的 tags 数组本身含 category 同名词和预约状态词，Node 版渲染同样重复。保留以维持与原版行为一致。

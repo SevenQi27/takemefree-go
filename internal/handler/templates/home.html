@@ -1,35 +1,81 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.Username}}</title>
+  <title>TakeMeFree · {{.CityLabel}}免费活动</title>
   <style>
+    /* 移动端优先（AC-005）：单列布局起步，宽屏升级为卡片网格 */
     :root { color-scheme: light dark; }
-    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 640px;
-           margin: 8vh auto; padding: 0 24px; line-height: 1.6; }
-    h1 { margin-bottom: 4px; }
-    .bio { color: gray; margin-top: 0; }
-    h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .08em; color: gray; margin-top: 2.2em; }
-    ul { padding-left: 1.2em; }
-    .proj a { font-weight: 600; text-decoration: none; }
-    .proj span { color: gray; }
-    footer { margin-top: 3em; font-size: .85em; color: gray; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "PingFang SC", "Segoe UI", Roboto, sans-serif;
+           margin: 0 auto; max-width: 960px; padding: 16px; line-height: 1.5; }
+    h1 { font-size: 1.3rem; margin: 4px 0 12px; }
+    h1 small { font-weight: normal; color: gray; font-size: .8rem; }
+
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    nav a { text-decoration: none; padding: 4px 12px; border-radius: 999px;
+            border: 1px solid rgba(128,128,128,.35); color: inherit; font-size: .9rem;
+            white-space: nowrap; }
+    nav a.on { background: crimson; border-color: crimson; color: white; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 16px; }
+    @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 900px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+
+    article { border: 1px solid rgba(128,128,128,.25); border-radius: 12px; padding: 14px;
+              display: flex; flex-direction: column; gap: 8px; }
+    .head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+    .head h2 { font-size: 1rem; margin: 0; }
+    .badge { flex-shrink: 0; font-size: .72rem; padding: 2px 8px; border-radius: 999px; }
+    .badge.free { background: rgba(16,185,129,.15); color: #059669; }
+    .badge.reserve { background: rgba(245,158,11,.15); color: #b45309; }
+    dl { margin: 0; font-size: .85rem; color: gray; display: flex; flex-direction: column; gap: 2px; }
+    dl div { display: flex; gap: 6px; } dt { flex-shrink: 0; opacity: .6; } dd { margin: 0; }
+    .chips { margin-top: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+    .chips span { font-size: .72rem; padding: 2px 8px; border-radius: 6px;
+                  background: rgba(128,128,128,.12); color: gray; }
+    .empty { margin: 48px 0; text-align: center; color: gray; }
   </style>
 </head>
 <body>
-  <h1>{{.Username}}</h1>
-  <p class="bio">{{.Bio}}</p>
-  <p><a href="{{.GitHub}}">GitHub → {{.GitHub}}</a></p>
+  <h1>TakeMeFree <small>发现你所在城市的免费活动</small></h1>
 
-  <h2>Stack</h2>
-  <ul>{{range .Stack}}<li>{{.}}</li>{{end}}</ul>
+  <!-- 城市切换（F-002）：SSR 直出，切换=带参链接 -->
+  <nav aria-label="城市">
+    {{$cat := .Category}}
+    {{range .Cities}}<a href="/?city={{.Value}}{{if $cat}}&amp;category={{$cat}}{{end}}" {{if .Selected}}class="on"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
 
-  <h2>Projects</h2>
-  <ul>{{range .Projects}}
-    <li class="proj"><a href="{{.URL}}">{{.Name}}</a> — <span>{{.Desc}}</span></li>
-  {{end}}</ul>
+  <!-- 分类入口（F-003）："全部" = 清除过滤 -->
+  <nav aria-label="分类">
+    {{$city := .City}}
+    {{range .Categories}}<a href="/?city={{$city}}{{if .Value}}&amp;category={{.Value}}{{end}}" {{if .Selected}}class="on"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
 
-  <footer>Served by a single Go binary · html/template + go:embed</footer>
+  {{if .Cards}}
+  <div class="grid">
+    {{range .Cards}}
+    <article>
+      <div class="head">
+        <h2>{{.Title}}</h2>
+        {{if .NeedsReserve}}<span class="badge reserve">需预约</span>{{else}}<span class="badge free">免预约</span>{{end}}
+      </div>
+      <dl>
+        <div><dt>时间</dt><dd>{{.TimeText}}</dd></div>
+        <div><dt>地点</dt><dd>{{.Location}}</dd></div>
+      </dl>
+      <div class="chips">
+        <span>{{.CategoryLabel}}</span>
+        {{if .FreeType}}<span>{{.FreeType}}</span>{{end}}
+        {{range .Tags}}<span>{{.}}</span>{{end}}
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{else}}
+  <!-- 空状态（F-007 / AC-006） -->
+  <p class="empty">{{.CityLabel}}暂无免费活动，换个城市或分类看看吧</p>
+  {{end}}
 </body>
 </html>
