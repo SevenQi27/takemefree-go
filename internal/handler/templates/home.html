@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Username}}</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 640px;
+           margin: 8vh auto; padding: 0 24px; line-height: 1.6; }
+    h1 { margin-bottom: 4px; }
+    .bio { color: gray; margin-top: 0; }
+    h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .08em; color: gray; margin-top: 2.2em; }
+    ul { padding-left: 1.2em; }
+    .proj a { font-weight: 600; text-decoration: none; }
+    .proj span { color: gray; }
+    footer { margin-top: 3em; font-size: .85em; color: gray; }
+  </style>
+</head>
+<body>
+  <h1>{{.Username}}</h1>
+  <p class="bio">{{.Bio}}</p>
+  <p><a href="{{.GitHub}}">GitHub → {{.GitHub}}</a></p>
+
+  <h2>Stack</h2>
+  <ul>{{range .Stack}}<li>{{.}}</li>{{end}}</ul>
+
+  <h2>Projects</h2>
+  <ul>{{range .Projects}}
+    <li class="proj"><a href="{{.URL}}">{{.Name}}</a> — <span>{{.Desc}}</span></li>
+  {{end}}</ul>
+
+  <footer>Served by a single Go binary · html/template + go:embed</footer>
+</body>
+</html>
