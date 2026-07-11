@@ -290,6 +290,7 @@ Resources:
     Properties:
       ServiceName: !Sub "${AppName}-svc"
       Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDef
       LaunchType: FARGATE
       DesiredCount: 1
       NetworkConfiguration:

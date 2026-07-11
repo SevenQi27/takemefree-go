@@ -3,3 +3,4 @@
 /server
 dist/
 .DS_Store
+.env.aws
