@@ -1,0 +1,98 @@
+<svg viewBox="0 0 680 705" xmlns="http://www.w3.org/2000/svg" role="img" font-family="-apple-system, 'PingFang SC', 'Segoe UI', Roboto, sans-serif">
+  <title>takemefree-go 完整部署全景图</title>
+  <desc>AWS us-east-1 区域内：VPC 双公有子网、ALB、Fargate 任务、RDS，右侧区域服务列 ECR、CloudMap 双命名空间、Lambda、CloudWatch，含八条编号流量路径与 IAM 角色分工</desc>
+  <style>
+    .t  { font-size: 14px; fill: #111827; }
+    .ts { font-size: 12px; fill: #6b7280; }
+    .bt { font-size: 14px; fill: #1e3a8a; }
+    .bs { font-size: 12px; fill: #3b5bd0; }
+    .gt { font-size: 14px; fill: #134e4a; }
+    .gs { font-size: 12px; fill: #0f766e; }
+  </style>
+  <rect x="0" y="0" width="680" height="705" fill="#ffffff"/>
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#6b7280"/></marker></defs>
+
+  <g fill="none" stroke="#6b7280" stroke-width="1.5">
+    <line x1="175" y1="66" x2="175" y2="104" marker-end="url(#ar)"/>
+    <line x1="175" y1="154" x2="175" y2="242" marker-end="url(#ar)"/>
+    <line x1="341" y1="294" x2="341" y2="326" marker-end="url(#ar)"/>
+    <line x1="264" y1="385" x2="228" y2="385" marker-end="url(#ar)"/>
+    <line x1="426" y1="340" x2="486" y2="340" marker-end="url(#ar)"/>
+    <line x1="426" y1="413" x2="486" y2="413" marker-end="url(#ar)"/>
+    <path d="M400,328 L400,300 L480,300 L480,159 L486,157" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+    <path d="M400,442 L400,475 L486,475" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+    <path d="M300,66 L300,80 L34,80 L34,360 L68,360" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+    <path d="M460,66 L460,120 L520,120 L520,127" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+  </g>
+
+  <rect x="24" y="92" width="632" height="580" rx="4" fill="none" stroke="#9ca3af"/>
+  <text x="648" y="112" class="t" text-anchor="end">AWS us-east-1</text>
+  <rect x="44" y="130" width="410" height="470" rx="4" fill="none" stroke="#b0b5bd"/>
+  <text x="446" y="150" class="ts" text-anchor="end">VPC 10.30.0.0/16</text>
+  <rect x="60" y="210" width="182" height="290" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="6 4"/>
+  <text x="70" y="230" class="ts">子网 A · 10.30.0.0/24</text>
+  <rect x="254" y="210" width="182" height="290" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="6 4"/>
+  <text x="264" y="230" class="ts">子网 B · 10.30.1.0/24</text>
+
+  <rect x="100" y="16" width="150" height="50" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="175" y="41" class="t" text-anchor="middle" dominant-baseline="central">用户 / 互联网</text>
+  <rect x="290" y="16" width="190" height="50" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="385" y="34" class="t" text-anchor="middle" dominant-baseline="central">我的电脑</text>
+  <text x="385" y="53" class="ts" text-anchor="middle" dominant-baseline="central">psql · docker push</text>
+  <rect x="120" y="108" width="110" height="44" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="175" y="130" class="t" text-anchor="middle" dominant-baseline="central">IGW 网关</text>
+
+  <rect x="72" y="246" width="150" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="147" y="269" class="bt" text-anchor="middle" dominant-baseline="central">ALB 节点 a</text>
+  <rect x="266" y="246" width="150" height="46" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="341" y="269" class="bt" text-anchor="middle" dominant-baseline="central">ALB 节点 b</text>
+
+  <rect x="72" y="330" width="150" height="60" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="147" y="352" class="gt" text-anchor="middle" dominant-baseline="central">RDS 主实例</text>
+  <text x="147" y="374" class="gs" text-anchor="middle" dominant-baseline="central">Postgres16 · 单AZ</text>
+
+  <rect x="266" y="330" width="158" height="110" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="345" y="352" class="bt" text-anchor="middle" dominant-baseline="central">Fargate 任务</text>
+  <text x="345" y="378" class="bs" text-anchor="middle" dominant-baseline="central">Go 容器 :8080</text>
+  <text x="345" y="400" class="bs" text-anchor="middle" dominant-baseline="central">IP 10.30.1.136</text>
+  <text x="345" y="422" class="bs" text-anchor="middle" dominant-baseline="central">ARM64 · 0.25vCPU</text>
+
+  <rect x="490" y="130" width="150" height="54" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="565" y="150" class="t" text-anchor="middle" dominant-baseline="central">ECR</text>
+  <text x="565" y="170" class="ts" text-anchor="middle" dominant-baseline="central">takemefree-go:v1</text>
+
+  <rect x="490" y="200" width="150" height="84" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="565" y="220" class="gt" text-anchor="middle" dominant-baseline="central">CloudMap · DNS</text>
+  <text x="565" y="244" class="gs" text-anchor="middle" dominant-baseline="central">takemefree.local</text>
+  <text x="565" y="266" class="gs" text-anchor="middle" dominant-baseline="central">web=任务IP · 自动</text>
+
+  <rect x="490" y="298" width="150" height="84" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="565" y="318" class="gt" text-anchor="middle" dominant-baseline="central">CloudMap · HTTP</text>
+  <text x="565" y="342" class="gs" text-anchor="middle" dominant-baseline="central">takemefree-registry</text>
+  <text x="565" y="364" class="gs" text-anchor="middle" dominant-baseline="central">lambda=ARN · 手工</text>
+
+  <rect x="490" y="396" width="150" height="50" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="565" y="413" class="bt" text-anchor="middle" dominant-baseline="central">Lambda hello</text>
+  <text x="565" y="433" class="bs" text-anchor="middle" dominant-baseline="central">内联 python</text>
+
+  <rect x="490" y="456" width="150" height="50" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="565" y="473" class="t" text-anchor="middle" dominant-baseline="central">CloudWatch</text>
+  <text x="565" y="493" class="ts" text-anchor="middle" dominant-baseline="central">/ecs/takemefree-go</text>
+
+  <text x="187" y="182" class="ts">① :80</text>
+  <text x="353" y="314" class="ts">② :8080</text>
+  <text x="245" y="373" class="ts" text-anchor="middle">③ :5432</text>
+  <text x="455" y="330" class="ts" text-anchor="middle">④ 发现</text>
+  <text x="455" y="403" class="ts" text-anchor="middle">⑤ 调用</text>
+  <text x="440" y="292" class="ts" text-anchor="middle">⑥ 拉镜像</text>
+  <text x="430" y="465" class="ts">⑦ 日志</text>
+  <text x="240" y="94" class="ts" text-anchor="middle">⑧ psql 仅我的IP</text>
+  <text x="472" y="112" class="ts">push 镜像</text>
+
+  <text x="60" y="528" class="ts">路由表：0.0.0.0/0 → IGW（纯公有子网 · 无NAT）</text>
+  <text x="60" y="552" class="ts">安全组：外网→:80→alb-sg→:8080→svc-sg→:5432→db-sg</text>
+  <text x="60" y="574" class="ts">db-sg 另放行我的IP/32</text>
+  <text x="44" y="626" class="ts">IAM：execution role=拉镜像/写日志（⑥⑦） · task role=仅 DiscoverInstances+Invoke hello（④⑤）</text>
+  <text x="44" y="650" class="ts">以上 30 个资源同属 CloudFormation 栈 takemefree-go-ecs，delete-stack 一键拆除</text>
+  <text x="24" y="694" class="ts">实线 = 请求路径 · 虚线 = 启动/运维路径 · 蓝 = 计算 · 青 = 数据/注册表</text>
+</svg>
