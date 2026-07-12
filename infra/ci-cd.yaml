@@ -119,18 +119,25 @@ Resources:
         Type: NO_SOURCE
         BuildSpec: |
           version: 0.2
+          # 坑位注记：CodeBuild 的 cwd 跨命令延续（BUILD 里 cd 进 src，POST_BUILD 再 cd src = src/src）；
+          # 非 export 的变量跨命令不保证存活。所以：cd 一律用 $CODEBUILD_SRC_DIR 绝对路径，
+          # 变量与用它的命令合进同一个块。
           phases:
             pre_build:
               commands:
                 - aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_HOST
-                - git clone --depth 1 --branch "$BRANCH" "$REPO_URL" src
+                - rm -rf "$CODEBUILD_SRC_DIR/src" && git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$CODEBUILD_SRC_DIR/src"
             build:
               commands:
-                - cd src && docker build -t $ECR_HOST/takemefree-go:pr-$PR_NUMBER . && docker push $ECR_HOST/takemefree-go:pr-$PR_NUMBER
+                - cd "$CODEBUILD_SRC_DIR/src" && docker build -t $ECR_HOST/takemefree-go:pr-$PR_NUMBER . && docker push $ECR_HOST/takemefree-go:pr-$PR_NUMBER
             post_build:
               commands:
-                - DATABASE_URL=$(aws ssm get-parameter --name /takemefree-go/database-url --with-decryption --query Parameter.Value --output text)
-                - cd src && aws cloudformation deploy --template-file infra/pr-service.yaml --stack-name takemefree-go-pr-$PR_NUMBER --parameter-overrides PrNumber=$PR_NUMBER ImageUri=$ECR_HOST/takemefree-go:pr-$PR_NUMBER DatabaseUrl=$DATABASE_URL --no-fail-on-empty-changeset
+                - |
+                  set -e
+                  test "$CODEBUILD_BUILD_SUCCEEDING" = "1" || { echo "前序阶段已失败，跳过部署"; exit 1; }
+                  DATABASE_URL=$(aws ssm get-parameter --name /takemefree-go/database-url --with-decryption --query Parameter.Value --output text)
+                  cd "$CODEBUILD_SRC_DIR/src"
+                  aws cloudformation deploy --template-file infra/pr-service.yaml --stack-name takemefree-go-pr-$PR_NUMBER --parameter-overrides PrNumber=$PR_NUMBER ImageUri=$ECR_HOST/takemefree-go:pr-$PR_NUMBER DatabaseUrl=$DATABASE_URL --no-fail-on-empty-changeset
                 - |
                   echo "在 VPC 内跑数据库迁移(一次性 ECS 任务, 命令覆盖为 -migrate)"
                   TASK_ARN=$(aws ecs run-task --cluster $CLUSTER --launch-type FARGATE \
