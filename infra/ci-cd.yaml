@@ -44,6 +44,17 @@ Resources:
               - Effect: Allow
                 Action: cloudformation:DeleteStack
                 Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/takemefree-go-pr-*/*"
+              # CFN 删栈用的是调用者凭证，所以回收方还得有栈内资源的删除权限
+              # （第一次 PR 关闭时 DELETE_FAILED 撞出来的教训；生产上更优解是给栈配 CFN service role）
+              - Effect: Allow
+                Action: [ecs:DescribeServices, ecs:DeleteService, ecs:UpdateService]
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/takemefree-go-cluster/takemefree-go-pr-*"
+              - Effect: Allow
+                Action: ecs:DeregisterTaskDefinition
+                Resource: "*"
+              - Effect: Allow
+                Action: [elasticloadbalancing:DescribeRules, elasticloadbalancing:DeleteRule, elasticloadbalancing:DescribeTargetGroups, elasticloadbalancing:DeleteTargetGroup]
+                Resource: "*"
               - Effect: Allow
                 Action: [ecr:ListImages, ecr:BatchDeleteImage]
                 Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrRepoName}"
