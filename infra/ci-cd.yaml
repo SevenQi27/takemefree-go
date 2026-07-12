@@ -10,15 +10,12 @@ Parameters:
   EcrRepoName:
     Type: String
     Default: takemefree-go
+  # 一个账号只能有一个 GitHub OIDC Provider——旧项目建过，这里复用（第一次部署时 409 撞出来的教训）
+  GitHubOidcArn:
+    Type: String
+    Default: arn:aws:iam::460589479296:oidc-provider/token.actions.githubusercontent.com
 
 Resources:
-  GitHubOidc:
-    Type: AWS::IAM::OIDCProvider
-    Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList: [sts.amazonaws.com]
-      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
-
   # 角色①：GitHub Actions 经 OIDC 换临时凭证——工作流里没有任何长期密钥
   GitHubDeployRole:
     Type: AWS::IAM::Role
@@ -28,7 +25,7 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Federated: !Ref GitHubOidc }
+            Principal: { Federated: !Ref GitHubOidcArn }
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals: { "token.actions.githubusercontent.com:aud": sts.amazonaws.com }
