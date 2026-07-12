@@ -1,0 +1,191 @@
+<svg viewBox="0 0 1440 1125" xmlns="http://www.w3.org/2000/svg" role="img" font-family="-apple-system, 'PingFang SC', 'Segoe UI', Roboto, sans-serif">
+  <title>takemefree-go 全要素图：代码走向 + 请求走向</title>
+  <desc>左列开发侧(GitHub/Actions/OIDC)，中列构建与控制面(STS/CodeBuild/ECR/SSM/CloudFormation/IAM)，右列运行态(VPC/子网/ALB/任务/RDS/CloudMap/Lambda/CloudWatch)；虚线为代码与发布流 C1-C12，实线为请求流 R1-R8，另有运维路径 O1/O2</desc>
+  <style>
+    .t  { font-size: 14px; fill: #111827; }
+    .ts { font-size: 12px; fill: #6b7280; }
+    .bt { font-size: 14px; fill: #1e3a8a; }
+    .bs { font-size: 12px; fill: #3b5bd0; }
+    .gt { font-size: 14px; fill: #134e4a; }
+    .gs { font-size: 12px; fill: #0f766e; }
+    .lb { font-size: 12px; fill: #4b5563; }
+  </style>
+  <rect x="0" y="0" width="1440" height="1125" fill="#ffffff"/>
+  <defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="#6b7280"/></marker></defs>
+
+  <g fill="none" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="5 4">
+    <line x1="105" y1="96" x2="105" y2="168" marker-end="url(#fa)"/>
+    <line x1="240" y1="253" x2="240" y2="238" marker-end="url(#fa)"/>
+    <path d="M310,300 L340,300 L340,164 L366,164" marker-end="url(#fa)"/>
+    <line x1="310" y1="330" x2="366" y2="330" marker-end="url(#fa)"/>
+    <line x1="435" y1="400" x2="435" y2="426" marker-end="url(#fa)"/>
+    <line x1="585" y1="400" x2="585" y2="426" marker-end="url(#fa)"/>
+    <line x1="510" y1="400" x2="510" y2="536" marker-end="url(#fa)"/>
+    <path d="M652,586 L664,586 L664,612 L948,612 L948,525 L976,525" marker-end="url(#fa)"/>
+    <path d="M652,362 L680,362 L680,632 L956,632 L956,605 L976,605" marker-end="url(#fa)"/>
+    <path d="M978,628 L932,628 L932,445 L929,445" marker-end="url(#fa)"/>
+    <path d="M120,998 L120,905 L718,905 L718,432 L746,432" marker-end="url(#fa)"/>
+    <path d="M212,1035 L348,1035 L348,470 L366,470" marker-end="url(#fa)"/>
+  </g>
+  <g fill="none" stroke="#6b7280" stroke-width="1.5">
+    <line x1="925" y1="82" x2="925" y2="116" marker-end="url(#fa)"/>
+    <path d="M890,162 L890,215 L815,215 L815,266" marker-end="url(#fa)"/>
+    <path d="M960,162 L960,215 L1045,215 L1045,266" marker-end="url(#fa)"/>
+    <line x1="1045" y1="322" x2="1045" y2="346" marker-end="url(#fa)"/>
+    <path d="M815,322 L815,335 L950,335 L950,490 L976,490" marker-end="url(#fa)"/>
+    <line x1="978" y1="400" x2="929" y2="400" marker-end="url(#fa)"/>
+    <path d="M978,535 L940,535 L940,435 L929,435" marker-end="url(#fa)"/>
+    <path d="M1157,385 L1195,385 L1195,400 L1226,400" marker-end="url(#fa)"/>
+    <path d="M1157,412 L1212,412 L1212,535 L1226,535" marker-end="url(#fa)"/>
+    <path d="M1157,365 L1190,365 L1190,182 L1226,182" marker-end="url(#fa)"/>
+  </g>
+
+  <rect x="30" y="30" width="150" height="64" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="105" y="52" class="t" text-anchor="middle" dominant-baseline="central">开发者(我)</text>
+  <text x="105" y="76" class="ts" text-anchor="middle" dominant-baseline="central">git push · 开 PR</text>
+
+  <rect x="30" y="130" width="300" height="320" rx="4" fill="none" stroke="#9ca3af"/>
+  <text x="46" y="152" class="t">GitHub</text>
+  <rect x="50" y="170" width="125" height="64" rx="4" fill="#f8f9fa" stroke="#b0b5bd"/>
+  <text x="112" y="190" class="t" text-anchor="middle" dominant-baseline="central">仓库 + PR</text>
+  <text x="112" y="212" class="ts" text-anchor="middle" dominant-baseline="central">pull_request 事件</text>
+  <rect x="195" y="170" width="115" height="64" rx="4" fill="#f8f9fa" stroke="#b0b5bd"/>
+  <text x="252" y="190" class="t" text-anchor="middle" dominant-baseline="central">OIDC 端点</text>
+  <text x="252" y="212" class="ts" text-anchor="middle" dominant-baseline="central">签发 JWT</text>
+  <rect x="50" y="255" width="260" height="180" rx="4" fill="#f8f9fa" stroke="#b0b5bd"/>
+  <text x="180" y="275" class="t" text-anchor="middle" dominant-baseline="central">Actions workflow</text>
+  <text x="62" y="299" class="ts">C2 validate: 正则校验分支名(Jira ID)</text>
+  <text x="62" y="321" class="ts">deploy: 取JWT→换凭证→StartBuild</text>
+  <text x="62" y="343" class="ts">每15s轮询 · 成功→REST API评论PR</text>
+  <text x="62" y="365" class="ts">cleanup(closed): 删栈+删镜像tag</text>
+  <text x="62" y="387" class="ts">vars: 部署角色ARN · ALB地址</text>
+
+  <rect x="370" y="130" width="130" height="64" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="435" y="150" class="t" text-anchor="middle" dominant-baseline="central">STS</text>
+  <text x="435" y="172" class="ts" text-anchor="middle" dominant-baseline="central">换1小时临时凭证</text>
+
+  <rect x="370" y="230" width="280" height="168" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="510" y="250" class="bt" text-anchor="middle" dominant-baseline="central">CodeBuild (ARM · privileged)</text>
+  <text x="382" y="274" class="bs">PRE: ECR登录(12h令牌) · git clone 分支</text>
+  <text x="382" y="296" class="bs">BUILD: docker build 多阶段 CGO=0</text>
+  <text x="382" y="318" class="bs">　　→ push 镜像 :pr-N</text>
+  <text x="382" y="340" class="bs">POST: 取SSM连接串 → cfn deploy</text>
+  <text x="382" y="362" class="bs">　　→ RunTask -migrate → 查exitCode</text>
+
+  <rect x="370" y="430" width="130" height="76" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="435" y="450" class="t" text-anchor="middle" dominant-baseline="central">ECR</text>
+  <text x="435" y="472" class="ts" text-anchor="middle" dominant-baseline="central">takemefree-go</text>
+  <text x="435" y="492" class="ts" text-anchor="middle" dominant-baseline="central">tags: v1 · pr-N</text>
+  <rect x="520" y="430" width="130" height="76" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="585" y="450" class="gt" text-anchor="middle" dominant-baseline="central">SSM 参数库</text>
+  <text x="585" y="472" class="gs" text-anchor="middle" dominant-baseline="central">database-url</text>
+  <text x="585" y="492" class="gs" text-anchor="middle" dominant-baseline="central">SecureString</text>
+
+  <rect x="370" y="540" width="280" height="92" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="510" y="560" class="t" text-anchor="middle" dominant-baseline="central">CloudFormation · 三个栈</text>
+  <text x="382" y="584" class="ts">takemefree-go-ecs: 底座30资源</text>
+  <text x="382" y="606" class="ts">…-cicd: CI底座 · …-pr-N: PR增量栈</text>
+
+  <rect x="370" y="670" width="280" height="130" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="510" y="690" class="t" text-anchor="middle" dominant-baseline="central">IAM 角色（一职一权）</text>
+  <text x="382" y="714" class="ts">gh-deploy: 仅本仓库OIDC可扮演</text>
+  <text x="382" y="736" class="ts">codebuild: 推镜像·部署pr-*·读SSM</text>
+  <text x="382" y="758" class="ts">execution: 拉ECR镜像·写日志</text>
+  <text x="382" y="780" class="ts">task: Discover+Invoke hello</text>
+
+  <rect x="850" y="20" width="150" height="60" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="925" y="40" class="t" text-anchor="middle" dominant-baseline="central">用户</text>
+  <text x="925" y="62" class="ts" text-anchor="middle" dominant-baseline="central">浏览器 / curl :80</text>
+
+  <rect x="690" y="100" width="720" height="860" rx="4" fill="none" stroke="#9ca3af"/>
+  <text x="1396" y="122" class="t" text-anchor="end">AWS us-east-1</text>
+
+  <rect x="710" y="140" width="480" height="700" rx="4" fill="none" stroke="#b0b5bd"/>
+  <text x="1176" y="162" class="ts" text-anchor="end">VPC 10.30.0.0/16</text>
+  <rect x="860" y="118" width="130" height="44" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="925" y="140" class="t" text-anchor="middle" dominant-baseline="central">IGW 网关</text>
+  <text x="725" y="185" class="ts">路由: 0.0.0.0/0→IGW · 无NAT</text>
+
+  <rect x="730" y="230" width="215" height="330" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="6 4"/>
+  <text x="740" y="250" class="ts">子网A · 10.30.0.0/24</text>
+  <rect x="750" y="268" width="130" height="52" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="815" y="294" class="bt" text-anchor="middle" dominant-baseline="central">ALB 节点 a</text>
+  <rect x="750" y="350" width="175" height="100" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="837" y="370" class="gt" text-anchor="middle" dominant-baseline="central">RDS PostgreSQL 16</text>
+  <text x="837" y="392" class="gs" text-anchor="middle" dominant-baseline="central">:5432 · db.t4g.micro</text>
+  <text x="837" y="414" class="gs" text-anchor="middle" dominant-baseline="central">库 takemefree</text>
+  <text x="837" y="436" class="gs" text-anchor="middle" dominant-baseline="central">schema 迁移幂等</text>
+
+  <rect x="960" y="230" width="215" height="430" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="6 4"/>
+  <text x="970" y="250" class="ts">子网B · 10.30.1.0/24</text>
+  <rect x="980" y="268" width="130" height="52" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="1045" y="294" class="bt" text-anchor="middle" dominant-baseline="central">ALB 节点 b</text>
+  <rect x="980" y="350" width="175" height="84" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="1067" y="370" class="bt" text-anchor="middle" dominant-baseline="central">主任务 (Fargate)</text>
+  <text x="1067" y="392" class="bs" text-anchor="middle" dominant-baseline="central">10.30.1.136 :8080</text>
+  <text x="1067" y="414" class="bs" text-anchor="middle" dominant-baseline="central">镜像 :v1 · svc-sg</text>
+  <rect x="980" y="460" width="175" height="84" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="1067" y="480" class="bt" text-anchor="middle" dominant-baseline="central">pr-N 任务 (Fargate)</text>
+  <text x="1067" y="502" class="bs" text-anchor="middle" dominant-baseline="central">:8080 · 镜像 :pr-N</text>
+  <text x="1067" y="524" class="bs" text-anchor="middle" dominant-baseline="central">启动经exec role拉镜像</text>
+  <rect x="980" y="570" width="175" height="70" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-dasharray="6 4"/>
+  <text x="1067" y="592" class="bt" text-anchor="middle" dominant-baseline="central">迁移任务(一次性)</text>
+  <text x="1067" y="616" class="bs" text-anchor="middle" dominant-baseline="central">/server -migrate</text>
+
+  <rect x="730" y="470" width="195" height="120" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="5 4"/>
+  <text x="740" y="490" class="ts">监听器 :80</text>
+  <text x="740" y="512" class="ts">默认动作 → 主TG</text>
+  <text x="740" y="534" class="ts">规则(优先级N):</text>
+  <text x="740" y="556" class="ts">X-PR-Env=pr-N → prTG</text>
+  <text x="740" y="578" class="ts">TG健康检查 /healthz·15s</text>
+
+  <rect x="730" y="640" width="195" height="100" rx="4" fill="none" stroke="#d1d5db" stroke-dasharray="5 4"/>
+  <text x="740" y="660" class="ts">安全组链(逐层收窄):</text>
+  <text x="740" y="682" class="ts">80 ← 全网 (alb-sg)</text>
+  <text x="740" y="704" class="ts">8080 ← alb-sg (svc-sg)</text>
+  <text x="740" y="726" class="ts">5432 ← svc-sg+我IP (db-sg)</text>
+
+  <rect x="1230" y="140" width="160" height="84" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="1310" y="160" class="t" text-anchor="middle" dominant-baseline="central">CloudWatch Logs</text>
+  <text x="1310" y="182" class="ts" text-anchor="middle" dominant-baseline="central">/ecs/takemefree-go</text>
+  <text x="1310" y="204" class="ts" text-anchor="middle" dominant-baseline="central">流: app · pr-N</text>
+  <rect x="1230" y="260" width="160" height="84" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="1310" y="280" class="gt" text-anchor="middle" dominant-baseline="central">CloudMap · DNS</text>
+  <text x="1310" y="302" class="gs" text-anchor="middle" dominant-baseline="central">takemefree.local</text>
+  <text x="1310" y="324" class="gs" text-anchor="middle" dominant-baseline="central">web=任务IP(自动)</text>
+  <rect x="1230" y="380" width="160" height="84" rx="4" fill="#ccfbf1" stroke="#14b8a6"/>
+  <text x="1310" y="400" class="gt" text-anchor="middle" dominant-baseline="central">CloudMap · HTTP</text>
+  <text x="1310" y="422" class="gs" text-anchor="middle" dominant-baseline="central">takemefree-registry</text>
+  <text x="1310" y="444" class="gs" text-anchor="middle" dominant-baseline="central">hello-lambda=ARN(手工)</text>
+  <rect x="1230" y="500" width="160" height="70" rx="4" fill="#dbeafe" stroke="#3b82f6"/>
+  <text x="1310" y="522" class="bt" text-anchor="middle" dominant-baseline="central">Lambda hello</text>
+  <text x="1310" y="546" class="bs" text-anchor="middle" dominant-baseline="central">内联 python</text>
+
+  <rect x="30" y="1000" width="180" height="70" rx="4" fill="#f8f9fa" stroke="#9ca3af"/>
+  <text x="120" y="1022" class="t" text-anchor="middle" dominant-baseline="central">我的电脑(运维)</text>
+  <text x="120" y="1046" class="ts" text-anchor="middle" dominant-baseline="central">psql初始化 · push :v1</text>
+
+  <text x="113" y="135" class="lb">C1</text>
+  <text x="248" y="248" class="lb">C3 取JWT</text>
+  <text x="344" y="226" class="lb">C4</text>
+  <text x="340" y="322" class="lb" text-anchor="middle">C5</text>
+  <text x="443" y="416" class="lb">C7 push</text>
+  <text x="593" y="416" class="lb">C8 取参数</text>
+  <text x="518" y="520" class="lb">C9 deploy</text>
+  <text x="800" y="606" class="lb">C10 建栈内资源</text>
+  <text x="695" y="626" class="lb">C11 RunTask -migrate</text>
+  <text x="936" y="622" class="lb">C12</text>
+  <text x="933" y="93" class="lb">R1</text>
+  <text x="852" y="208" class="lb">R2 转发</text>
+  <text x="1053" y="338" class="lb">R3 默认</text>
+  <text x="880" y="327" class="lb" text-anchor="middle">R4 X-PR-Env</text>
+  <text x="948" y="412" class="lb" text-anchor="middle">R5</text>
+  <text x="1160" y="357" class="lb">R8 日志</text>
+  <text x="1160" y="378" class="lb">R6 发现</text>
+  <text x="1165" y="425" class="lb">R7 调用</text>
+  <text x="300" y="912" class="lb">O1 psql · db-sg仅放行我IP/32</text>
+  <text x="356" y="1028" class="lb">O2 首次 push :v1</text>
+
+  <text x="30" y="1092" class="ts">虚线 = 代码与发布流：C1 push/PR → C2 分支校验 → C3 取JWT → C4 STS换凭证(gh-deploy) → C5 StartBuild → C7 push镜像 → C8 读SSM → C9 cfn deploy → C10 创建pr-N栈内资源 → C11 VPC内迁移任务 → C12 执行SQL；成功后Actions评论PR，closed时删栈+删tag</text>
+  <text x="30" y="1114" class="ts">实线 = 请求流：R1 :80入IGW → R2 至ALB双节点 → R3 默认入主任务 / R4 带头入pr任务 → R5 连RDS → R6 CloudMap发现(task role) → R7 调Lambda → R8 日志入CloudWatch(exec role)　·　O1/O2 = 运维路径</text>
+</svg>
