@@ -29,3 +29,5 @@ internal/handler    SSR home, CRUD API, CloudMap→Lambda bridge
 infra/              CloudFormation: base stack / per-PR stack / CI foundation
 .github/workflows   PR env pipeline (validate branch → OIDC → CodeBuild → comment)
 ```
+
+_Second demo PR: verify full create-recycle loop._
