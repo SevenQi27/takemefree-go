@@ -308,7 +308,34 @@ Resources:
 Outputs:
   AlbUrl:
     Value: !Sub "http://${Alb.DNSName}"
+    Export: { Name: tmfgo-alb-url }
   DbEndpoint:
     Value: !GetAtt Db.Endpoint.Address
   ClusterName:
     Value: !Ref Cluster
+    Export: { Name: tmfgo-cluster }
+  # 以下导出供 PR 增量栈(infra/pr-service.yaml)引用——底座共享、每个 PR 只加服务和路由规则
+  VpcId:
+    Value: !Ref Vpc
+    Export: { Name: tmfgo-vpc }
+  SubnetAId:
+    Value: !Ref SubnetA
+    Export: { Name: tmfgo-subnet-a }
+  SubnetBId:
+    Value: !Ref SubnetB
+    Export: { Name: tmfgo-subnet-b }
+  ServiceSgId:
+    Value: !Ref ServiceSg
+    Export: { Name: tmfgo-svc-sg }
+  ListenerArn:
+    Value: !Ref Listener
+    Export: { Name: tmfgo-listener }
+  ExecutionRoleArn:
+    Value: !GetAtt ExecutionRole.Arn
+    Export: { Name: tmfgo-exec-role }
+  TaskRoleArn:
+    Value: !GetAtt TaskRole.Arn
+    Export: { Name: tmfgo-task-role }
+  LogGroupName:
+    Value: !Ref LogGroup
+    Export: { Name: tmfgo-log-group }

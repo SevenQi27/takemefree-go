@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  作业3 CI 底座：GitHub OIDC 信任 + 三角色中的前两个（①OIDC 部署角色=进门、②CodeBuild 角色=干活；
+  ③运行角色在应用栈里）+ CodeBuild 项目（ARM 环境原生构建 arm64 镜像，内联 buildspec）。
+
+Parameters:
+  GitHubRepo:
+    Type: String
+    Default: SevenQi27/takemefree-go
+  EcrRepoName:
+    Type: String
+    Default: takemefree-go
+
+Resources:
+  GitHubOidc:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
+
+  # 角色①：GitHub Actions 经 OIDC 换临时凭证——工作流里没有任何长期密钥
+  GitHubDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: takemefree-go-gh-deploy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Federated: !Ref GitHubOidc }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals: { "token.actions.githubusercontent.com:aud": sts.amazonaws.com }
+              StringLike: { "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepo}:*" }
+      Policies:
+        - PolicyName: trigger-and-cleanup
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [codebuild:StartBuild, codebuild:BatchGetBuilds]
+                Resource: !GetAtt BuildProject.Arn
+              - Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: "*"
+              - Effect: Allow
+                Action: cloudformation:DeleteStack
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/takemefree-go-pr-*/*"
+              - Effect: Allow
+                Action: [ecr:ListImages, ecr:BatchDeleteImage]
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrRepoName}"
+
+  # 角色②：CodeBuild 干活用——推镜像、部署 PR 栈、发起 VPC 内迁移任务
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: takemefree-go-codebuild
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codebuild.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: build-and-deploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action: [ecr:BatchCheckLayerAvailability, ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload, ecr:PutImage, ecr:BatchGetImage, ecr:GetDownloadUrlForLayer]
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${EcrRepoName}"
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/takemefree-go/*"
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/takemefree-go-pr-*/*"
+              - Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:ValidateTemplate, cloudformation:ListExports]
+                Resource: "*"
+              - Effect: Allow
+                Action: [ecs:RegisterTaskDefinition, ecs:DeregisterTaskDefinition, ecs:DescribeTaskDefinition, ecs:CreateService, ecs:UpdateService, ecs:DeleteService, ecs:DescribeServices, ecs:RunTask, ecs:DescribeTasks, ecs:TagResource]
+                Resource: "*"
+              - Effect: Allow
+                Action: elasticloadbalancing:*
+                Resource: "*"
+              - Effect: Allow
+                Action: ec2:Describe*
+                Resource: "*"
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !ImportValue tmfgo-exec-role
+                  - !ImportValue tmfgo-task-role
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+                Resource: "*"
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: takemefree-go-pr
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts: { Type: NO_ARTIFACTS }
+      TimeoutInMinutes: 20
+      Environment:
+        Type: ARM_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-aarch64-standard:3.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - { Name: ECR_HOST, Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com" }
+          - { Name: REPO_URL, Value: !Sub "https://github.com/${GitHubRepo}.git" }
+          - { Name: SUBNET_A, Value: !ImportValue tmfgo-subnet-a }
+          - { Name: SVC_SG, Value: !ImportValue tmfgo-svc-sg }
+          - { Name: CLUSTER, Value: !ImportValue tmfgo-cluster }
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_HOST
+                - git clone --depth 1 --branch "$BRANCH" "$REPO_URL" src
+            build:
+              commands:
+                - cd src && docker build -t $ECR_HOST/takemefree-go:pr-$PR_NUMBER . && docker push $ECR_HOST/takemefree-go:pr-$PR_NUMBER
+            post_build:
+              commands:
+                - DATABASE_URL=$(aws ssm get-parameter --name /takemefree-go/database-url --with-decryption --query Parameter.Value --output text)
+                - cd src && aws cloudformation deploy --template-file infra/pr-service.yaml --stack-name takemefree-go-pr-$PR_NUMBER --parameter-overrides PrNumber=$PR_NUMBER ImageUri=$ECR_HOST/takemefree-go:pr-$PR_NUMBER DatabaseUrl=$DATABASE_URL --no-fail-on-empty-changeset
+                - |
+                  echo "在 VPC 内跑数据库迁移(一次性 ECS 任务, 命令覆盖为 -migrate)"
+                  TASK_ARN=$(aws ecs run-task --cluster $CLUSTER --launch-type FARGATE \
+                    --network-configuration "awsvpcConfiguration={subnets=[$SUBNET_A],securityGroups=[$SVC_SG],assignPublicIp=ENABLED}" \
+                    --task-definition takemefree-go-pr-$PR_NUMBER \
+                    --overrides '{"containerOverrides":[{"name":"app","command":["-migrate"]}]}' \
+                    --query 'tasks[0].taskArn' --output text)
+                  aws ecs wait tasks-stopped --cluster $CLUSTER --tasks $TASK_ARN
+                  EXIT=$(aws ecs describe-tasks --cluster $CLUSTER --tasks $TASK_ARN --query 'tasks[0].containers[0].exitCode' --output text)
+                  echo "迁移任务退出码: $EXIT"; test "$EXIT" = "0"
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt GitHubDeployRole.Arn

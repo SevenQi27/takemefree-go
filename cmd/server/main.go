@@ -19,6 +19,15 @@ import (
 func main() {
 	ctx := context.Background()
 
+	// -migrate 子命令：CI 里由一次性 ECS 任务调用，跑完即退出（退出码=迁移成败）
+	if len(os.Args) > 1 && os.Args[1] == "-migrate" {
+		if err := db.Migrate(ctx, os.Getenv("DATABASE_URL")); err != nil {
+			log.Fatalf("迁移失败: %v", err)
+		}
+		log.Println("迁移完成")
+		return
+	}
+
 	pool, err := db.NewPool(ctx)
 	if err != nil {
 		log.Fatalf("启动失败: %v", err)

@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  作业3：单个 PR 的独立环境增量栈。底座(VPC/RDS/ALB/集群)由 takemefree-go-ecs 共享，
+  每个 PR 只部署：自己的任务定义 + 目标组 + ALB 请求头路由规则(X-PR-Env: pr-N) + 服务。
+  PR 关闭时整栈删除，秒级回收。
+
+Parameters:
+  PrNumber:
+    Type: Number
+    MinValue: 1
+    MaxValue: 98
+    Description: PR 编号，同时用作 ALB 规则优先级
+  ImageUri:
+    Type: String
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+
+Resources:
+  Tg:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !ImportValue tmfgo-vpc
+      TargetType: ip
+      Protocol: HTTP
+      Port: 8080
+      HealthCheckPath: /healthz
+      HealthCheckIntervalSeconds: 15
+      HealthyThresholdCount: 2
+
+  # 请求头路由：课堂上 Node 版用 API Gateway 按请求头分发，这是 ALB 监听规则版
+  HeaderRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue tmfgo-listener
+      Priority: !Ref PrNumber
+      Conditions:
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: X-PR-Env
+            Values: [!Sub "pr-${PrNumber}"]
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref Tg
+
+  TaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "takemefree-go-pr-${PrNumber}"
+      RequiresCompatibilities: [FARGATE]
+      Cpu: "256"
+      Memory: "512"
+      NetworkMode: awsvpc
+      RuntimePlatform: { CpuArchitecture: ARM64, OperatingSystemFamily: LINUX }
+      ExecutionRoleArn: !ImportValue tmfgo-exec-role
+      TaskRoleArn: !ImportValue tmfgo-task-role
+      ContainerDefinitions:
+        - Name: app
+          Image: !Ref ImageUri
+          PortMappings: [{ ContainerPort: 8080 }]
+          Environment:
+            - { Name: DATABASE_URL, Value: !Ref DatabaseUrl }
+            - { Name: DISCOVERY_NAMESPACE, Value: takemefree-registry }
+            - { Name: DISCOVERY_SERVICE, Value: hello-lambda }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue tmfgo-log-group
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: !Sub "pr-${PrNumber}"
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "takemefree-go-pr-${PrNumber}-svc"
+      Cluster: !ImportValue tmfgo-cluster
+      TaskDefinition: !Ref TaskDef
+      LaunchType: FARGATE
+      DesiredCount: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: [!ImportValue tmfgo-subnet-a, !ImportValue tmfgo-subnet-b]
+          SecurityGroups: [!ImportValue tmfgo-svc-sg]
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8080
+          TargetGroupArn: !Ref Tg
+
+Outputs:
+  TestCommand:
+    Value: !Sub
+      - 'curl -H "X-PR-Env: pr-${PrNumber}" ${Alb}/api/activities'
+      - { Alb: !ImportValue tmfgo-alb-url }

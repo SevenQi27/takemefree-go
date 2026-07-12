@@ -11,5 +11,5 @@ services:
       # 宿主机 5433：本机 homebrew PostgreSQL 占了 5432，避开
       - "5433:5432"
     volumes:
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
-      - ./seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./internal/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./internal/db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro

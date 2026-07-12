@@ -1,0 +1,95 @@
+# 作业3：PR 独立环境流水线
+# PR 打开/更新 → 校验分支名(Jira ID) → OIDC 换凭证 → CodeBuild(build+push+部署PR栈+VPC内迁移) → 评论环境地址
+# PR 关闭 → 删栈 + 删镜像 tag
+name: pr-env
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  validate:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 分支名必须含 Jira ID（不符合直接拒绝构建）
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          echo "$BRANCH" | grep -Eq '^(feature|fix|hotfix)/[A-Z]+-[0-9]+' || {
+            echo "::error::分支名 $BRANCH 不符合规范：(feature|fix|hotfix)/JIRA-123-描述"
+            exit 1
+          }
+
+  deploy:
+    needs: validate
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 触发 CodeBuild 并等待完成
+        run: |
+          BUILD_ID=$(aws codebuild start-build --project-name takemefree-go-pr \
+            --environment-variables-override \
+              name=BRANCH,value="${{ github.head_ref }}" \
+              name=PR_NUMBER,value="${{ github.event.number }}" \
+            --query 'build.id' --output text)
+          echo "CodeBuild: $BUILD_ID"
+          while :; do
+            STATUS=$(aws codebuild batch-get-builds --ids "$BUILD_ID" --query 'builds[0].buildStatus' --output text)
+            [ "$STATUS" = "IN_PROGRESS" ] || break
+            sleep 15
+          done
+          echo "构建结果: $STATUS"
+          [ "$STATUS" = "SUCCEEDED" ]
+      - name: 在 PR 里评论环境地址
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const alb = '${{ vars.ALB_URL }}';
+            const n = context.issue.number;
+            github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: n,
+              body: [
+                `PR 独立环境已就绪（请求头路由）`,
+                '```bash',
+                `curl -H "X-PR-Env: pr-${n}" ${alb}/healthz`,
+                `curl -H "X-PR-Env: pr-${n}" ${alb}/api/activities`,
+                '```',
+                `不带请求头访问 ${alb} 仍是主环境。PR 关闭后本环境自动回收。`
+              ].join('\n')
+            });
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 删除 PR 栈与镜像
+        run: |
+          N="${{ github.event.number }}"
+          aws cloudformation delete-stack --stack-name "takemefree-go-pr-$N"
+          aws cloudformation wait stack-delete-complete --stack-name "takemefree-go-pr-$N"
+          aws ecr batch-delete-image --repository-name takemefree-go --image-ids imageTag="pr-$N" || true
+      - name: 评论已回收
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: 'PR 环境已回收：栈与镜像 tag 均已删除。'
+            });
