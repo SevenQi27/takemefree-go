@@ -10,10 +10,12 @@ Parameters:
   EcrRepoName:
     Type: String
     Default: takemefree-go
-  # 一个账号只能有一个 GitHub OIDC Provider——旧项目建过，这里复用（第一次部署时 409 撞出来的教训）
+  # 一个账号只能有一个 GitHub OIDC Provider——旧项目建过，这里复用（第一次部署时 409 撞出来的教训）。
+  # 无默认值：部署时用 --parameter-overrides 传入你账号里现有的 Provider ARN
+  # （查询：aws iam list-open-id-connect-providers）
   GitHubOidcArn:
     Type: String
-    Default: arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com
+    AllowedPattern: '^arn:aws:iam::\d{12}:oidc-provider/token\.actions\.githubusercontent\.com$'
 
 Resources:
   # 角色①：GitHub Actions 经 OIDC 换临时凭证——工作流里没有任何长期密钥
