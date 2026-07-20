@@ -1,0 +1,79 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  作业(周六1.2)：SNS/SQS + 死信队列。SNS 扇出领域事件 → 主队列 worker 消费；
+  处理失败不删消息 → 可见性超时重投 → 超过 maxReceiveCount 由 SQS 自动移入 DLQ；
+  DLQ 有消息即告警。独立小栈，不依赖已拆除的 ECS 底座。
+
+Resources:
+  EventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: takemefree-events
+
+  # 死信队列：毒消息的停尸房。保留 14 天，给人工排障和 redrive 留足窗口
+  ActivityDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: takemefree-activity-dlq
+      MessageRetentionPeriod: 1209600
+
+  # 主队列：可见性超时故意压到 10 秒，方便演示时快速看到"失败→重投→进DLQ"全程
+  # （生产上可见性超时应 ≥ 消费端最长处理时间，否则消息会在处理中被重复投递）
+  ActivityQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: takemefree-activity-worker
+      VisibilityTimeout: 10
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ActivityDlq.Arn
+        maxReceiveCount: 3
+
+  # SNS → SQS 投递授权：队列策略只对本 Topic 开门
+  QueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref ActivityQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: sns.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt ActivityQueue.Arn
+            Condition:
+              ArnEquals: { "aws:SourceArn": !Ref EventsTopic }
+
+  # RawMessageDelivery=true：SQS 里拿到的就是业务信封本体，不裹 SNS 的元数据外壳
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref EventsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt ActivityQueue.Arn
+      RawMessageDelivery: true
+
+  # DLQ 深度告警：死信队列里只要出现 1 条消息就报警——毒消息不该被静默积压
+  DlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: takemefree-activity-dlq-not-empty
+      AlarmDescription: 死信队列非空，有消息处理连续失败被移入 DLQ，需要人工介入
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt ActivityDlq.QueueName }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  TopicArn:
+    Value: !Ref EventsTopic
+  QueueUrl:
+    Value: !Ref ActivityQueue
+  DlqUrl:
+    Value: !Ref ActivityDlq

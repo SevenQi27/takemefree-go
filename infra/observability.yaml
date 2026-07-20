@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  作业(周六1.1 + 周日)：观测栈。统计S3桶（ECS清洗产物 + Synthetics工件，7天生命周期）
+  + Synthetics 巡检任务（每5分钟探测 ALB 的 /healthz 与活动列表接口）。
+
+Parameters:
+  TargetBaseUrl:
+    Type: String
+    Description: 被巡检服务的基地址（ALB URL，不带末尾斜杠）
+
+Resources:
+  # 统一存储桶：aggregates/ 放清洗产物，canary-artifacts/ 放巡检工件
+  StatsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "takemefree-stats-${AWS::AccountId}"
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-7d
+            Status: Enabled
+            ExpirationInDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CanaryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: canary-exec
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub "${StatsBucket.Arn}/canary-artifacts/*"
+              - Effect: Allow
+                Action: s3:GetBucketLocation
+                Resource: !GetAtt StatsBucket.Arn
+              - Effect: Allow
+                Action: s3:ListAllMyBuckets
+                Resource: "*"
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/cwsyn-*"
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals: { "cloudwatch:namespace": CloudWatchSynthetics }
+
+  # 巡检：executeHttpStep 对非 2xx/3xx 直接判失败，结果进面板的 Synthetics 卡片
+  PatrolCanary:
+    Type: AWS::Synthetics::Canary
+    Properties:
+      Name: takemefree-patrol
+      ArtifactS3Location: !Sub "s3://${StatsBucket}/canary-artifacts"
+      ExecutionRoleArn: !GetAtt CanaryRole.Arn
+      RuntimeVersion: syn-nodejs-puppeteer-16.1
+      StartCanaryAfterCreation: true
+      Schedule: { Expression: "rate(5 minutes)" }
+      RunConfig:
+        TimeoutInSeconds: 60
+        EnvironmentVariables:
+          TARGET_BASE_URL: !Ref TargetBaseUrl
+      Code:
+        Handler: index.handler
+        Script: |
+          const synthetics = require('Synthetics');
+          const apiPatrol = async function () {
+              const base = process.env.TARGET_BASE_URL;
+              // 步骤名限制：只允许字母数字连字符下划线点空格——不能带斜杠（第一跑踩过）
+              const checks = [
+                  { label: 'GET healthz', path: '/healthz' },
+                  { label: 'GET activities', path: '/api/activities?city=shanghai' },
+              ];
+              for (const { label, path } of checks) {
+                  const url = new URL(base + path);
+                  await synthetics.executeHttpStep(label, {
+                      hostname: url.hostname,
+                      method: 'GET',
+                      path: url.pathname + url.search,
+                      port: 80,
+                      protocol: 'http:',
+                  });
+              }
+          };
+          exports.handler = async () => await apiPatrol();
+
+Outputs:
+  StatsBucketName:
+    Value: !Ref StatsBucket

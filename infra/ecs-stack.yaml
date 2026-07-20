@@ -19,6 +19,26 @@ Parameters:
     Type: String
     Description: 你的公网IP/32，用于本机 psql 初始化 schema（curl -s ifconfig.me）
     AllowedPattern: '^\d+\.\d+\.\d+\.\d+/32$'
+  # 消息栈(takemefree-messaging)的输出，空串=事件功能禁用（代码里的零依赖约定）
+  EventsTopicArn:
+    Type: String
+    Default: ""
+  QueueUrl:
+    Type: String
+    Default: ""
+  DlqUrl:
+    Type: String
+    Default: ""
+  LlmBaseUrl:
+    Type: String
+    Default: ""
+    Description: OpenAI 兼容端点(不带 /chat/completions)，空=禁用 AI agent
+  LlmModel:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasLlm: !Not [!Equals [!Ref LlmBaseUrl, ""]]
 
 Resources:
   # ---------- 网络：VPC + 两个公有子网（RDS 子网组要求跨2个AZ），无 NAT ----------
@@ -199,6 +219,14 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: read-llm-secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameters
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/takemefree-go/*"
 
   # task role：容器里的业务代码用（查 CloudMap、调 Lambda）——与 execution role 的区别是面试高频题
   TaskRole:
@@ -221,11 +249,39 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: !GetAtt HelloFunction.Arn
+        - PolicyName: ops-dashboard
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:takemefree-*"
+              - Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes]
+                Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:takemefree-*"
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogStreams, logs:GetLogEvents, logs:FilterLogEvents]
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/perf/${AppName}*"
+              - Effect: Allow
+                Action: [synthetics:DescribeCanariesLastRun, synthetics:DescribeCanaries, cloudwatch:GetMetricData, cloudwatch:DescribeAlarms]
+                Resource: "*"
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:ListBucket]
+                Resource:
+                  - !Sub "arn:aws:s3:::takemefree-stats-${AWS::AccountId}"
+                  - !Sub "arn:aws:s3:::takemefree-stats-${AWS::AccountId}/*"
 
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/ecs/${AppName}"
+      RetentionInDays: 7
+
+  # 性能SDK的落点：应用经 PutLogEvents 直写（不是stdout转发），清洗任务从这里读
+  PerfLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/perf/${AppName}"
       RetentionInDays: 7
 
   TaskDef:
@@ -251,6 +307,27 @@ Resources:
               Value: takemefree-registry
             - Name: DISCOVERY_SERVICE
               Value: hello-lambda
+            - Name: EVENTS_TOPIC_ARN
+              Value: !Ref EventsTopicArn
+            - Name: QUEUE_URL
+              Value: !Ref QueueUrl
+            - Name: PERF_LOG_GROUP
+              Value: !Ref PerfLogGroup
+            - Name: DLQ_URL
+              Value: !Ref DlqUrl
+            - Name: STATS_BUCKET
+              Value: !Sub "takemefree-stats-${AWS::AccountId}"
+            - Name: LLM_BASE_URL
+              Value: !Ref LlmBaseUrl
+            - Name: LLM_MODEL
+              Value: !Ref LlmModel
+          Secrets: !If
+            - HasLlm
+            - - Name: LLM_API_KEY
+                ValueFrom: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/takemefree-go/llm-api-key"
+              - Name: MCP_AUTH_TOKEN
+                ValueFrom: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/takemefree-go/mcp-token"
+            - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs
             Options:

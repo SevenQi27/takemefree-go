@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SevenQi27/takemefree-go/internal/db"
+	"github.com/SevenQi27/takemefree-go/internal/events"
 )
 
 var validStatuses = map[string]bool{"published": true, "hidden": true, "draft": true}
@@ -195,7 +196,7 @@ func GetActivityByID(pool *pgxpool.Pool) http.HandlerFunc {
 }
 
 // CreateActivityHandler POST /api/activities
-func CreateActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func CreateActivityHandler(pool *pgxpool.Pool, pub *events.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var in ActivityInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -213,12 +214,13 @@ func CreateActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			errJSON(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		pub.Publish(r.Context(), "activity.created", act)
 		writeJSON(w, http.StatusCreated, map[string]any{"activity": act})
 	}
 }
 
 // UpdateActivityHandler PUT /api/activities/{id} —— 整行覆盖式更新（与 Node 版一致）。
-func UpdateActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func UpdateActivityHandler(pool *pgxpool.Pool, pub *events.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var in ActivityInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -240,12 +242,13 @@ func UpdateActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			errJSON(w, http.StatusNotFound, "Activity not found.")
 			return
 		}
+		pub.Publish(r.Context(), "activity.updated", act)
 		writeJSON(w, http.StatusOK, map[string]any{"activity": act})
 	}
 }
 
 // DeleteActivityHandler DELETE /api/activities/{id}
-func DeleteActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
+func DeleteActivityHandler(pool *pgxpool.Pool, pub *events.Publisher) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		act, err := db.DeleteActivity(r.Context(), pool, r.PathValue("id"))
 		if err != nil {
@@ -257,6 +260,7 @@ func DeleteActivityHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			errJSON(w, http.StatusNotFound, "Activity not found.")
 			return
 		}
+		pub.Publish(r.Context(), "activity.deleted", act)
 		writeJSON(w, http.StatusOK, map[string]any{"deleted": act})
 	}
 }

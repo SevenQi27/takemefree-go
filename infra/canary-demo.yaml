@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  作业(周六1.3)：API 灰度上线。Lambda 别名加权路由：alias(prod) 初始 100% 指向 v1，
+  灰度时用 CLI 把新版本按权重掺入（10% → 验证 → 100%），API Gateway 始终只认 alias——
+  切流对调用方零感知。函数体返回自身版本号，让流量分布肉眼可数。
+
+Resources:
+  FnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  # 返回自己的版本号：context.function_version 由 Lambda 运行时注入，
+  # 同一份代码发布成 v1/v2 后返回值不同——这就是灰度分布的计数器
+  VersionFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: takemefree-canary-demo
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt FnRole.Arn
+      Environment:
+        Variables: { RELEASE_MARKER: v1 }
+      Code:
+        ZipFile: |
+          import json, os
+          def handler(event, context):
+              return {
+                  "statusCode": 200,
+                  "headers": {"Content-Type": "application/json"},
+                  "body": json.dumps({
+                      "lambdaVersion": context.function_version,
+                      "release": os.environ.get("RELEASE_MARKER", "?"),
+                  }),
+              }
+
+  V1:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref VersionFn
+      Description: initial release
+
+  ProdAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref VersionFn
+      FunctionVersion: !GetAtt V1.Version
+      Name: prod
+      # 灰度演示阶段用 CLI update-alias 加 routing-config，权重变化不动这份模板
+
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: takemefree-canary-api
+      ProtocolType: HTTP
+
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      # 集成指向 alias（带:prod限定符）——调用方永远打同一个地址，权重在 alias 内部分配
+      IntegrationUri: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${VersionFn}:prod"
+      PayloadFormatVersion: "2.0"
+
+  Route:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: GET /version
+      Target: !Sub "integrations/${Integration}"
+
+  Stage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref Api
+      StageName: $default
+      AutoDeploy: true
+
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    # 字符串拼出来的 :prod 引用 CFN 看不出依赖关系，必须显式 DependsOn——
+    # 否则权限并行创建先于别名落地，404 整栈回滚（第一次创建踩过）
+    DependsOn: ProdAlias
+    Properties:
+      FunctionName: !Sub "${VersionFn}:prod"
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*"
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/version"

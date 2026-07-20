@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运维演示面板 · takemefree-go</title>
+<style>
+  :root { --bg:#0b1020; --card:#141b2f; --card2:#0e1526; --line:#26314d; --text:#e6ebf5; --dim:#8b98b8;
+          --ok:#2dd4a7; --warn:#f5b83d; --bad:#ff6b6b; --accent:#5b9dff; --accent2:#7c6bff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:radial-gradient(1200px 500px at 70% -10%, #16224a 0%, var(--bg) 55%);
+         color:var(--text); font:14px/1.65 -apple-system,"PingFang SC",sans-serif; padding:28px; min-height:100vh; }
+  .wrap { max-width:1440px; margin:0 auto; }
+  header { display:flex; align-items:baseline; gap:14px; margin-bottom:22px; flex-wrap:wrap; }
+  h1 { font-size:22px; letter-spacing:.5px; }
+  .sub { color:var(--dim); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(12, 1fr); gap:18px; }
+  .card { background:linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+          border:1px solid var(--line); border-radius:14px; padding:20px 22px;
+          box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .span7 { grid-column:span 7; } .span5 { grid-column:span 5; }
+  .span12 { grid-column:span 12; }
+  @media (max-width:1100px){ .span7,.span5,.span12 { grid-column:span 12; } }
+  .card h2 { font-size:15px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--line);
+             display:flex; align-items:center; gap:9px; font-weight:600; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--dim); box-shadow:0 0 8px transparent; }
+  .dot.ok { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .dot.bad { background:var(--bad); box-shadow:0 0 8px var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--dim); font-weight:normal; padding:6px 10px 6px 0; font-size:12px; }
+  td { padding:7px 10px 7px 0; border-top:1px solid var(--line); }
+  .num { font-variant-numeric:tabular-nums; font-family:ui-monospace,Menlo,monospace; }
+  .kpis { display:flex; gap:34px; margin:6px 0 14px; }
+  .kpi .v { font-size:30px; font-weight:650; font-family:ui-monospace,Menlo,monospace; }
+  .kpi .k { color:var(--dim); font-size:12px; margin-top:-2px; }
+  .bad-text { color:var(--bad); } .ok-text { color:var(--ok); } .warn-text { color:var(--warn); }
+  .btns { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  button { background:linear-gradient(135deg, var(--accent), var(--accent2)); border:none; color:#fff;
+           font-weight:600; padding:10px 18px; border-radius:9px; cursor:pointer; font-size:13.5px;
+           transition:transform .08s, filter .15s; }
+  button.danger { background:linear-gradient(135deg, #ff6b6b, #d94f7d); }
+  button:hover { filter:brightness(1.12); }
+  button:active { transform:scale(.95); }
+  button:disabled { filter:grayscale(.6) brightness(.8); cursor:default; }
+  .receipt { font-size:12.5px; color:var(--ok); min-width:120px; }
+  .sendlog { background:#0a0f1e; border:1px solid var(--line); border-radius:9px; padding:10px 12px;
+             font-size:12px; max-height:130px; overflow:auto; font-family:ui-monospace,Menlo,monospace; }
+  .sendlog div { padding:2px 0; color:var(--dim); }
+  .sendlog b.p { color:var(--bad); } .sendlog b.n { color:var(--ok); }
+  pre { background:#0a0f1e; border:1px solid var(--line); border-radius:10px; padding:14px;
+        font-size:12px; line-height:1.8; overflow:auto; max-height:420px; min-height:220px;
+        white-space:pre-wrap; word-break:break-all; color:#b7c3de; }
+  .muted { color:var(--dim); font-size:12.5px; }
+  .bar { height:5px; background:#233152; border-radius:3px; overflow:hidden; margin-top:3px; }
+  .bar i { display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  .pill.pass { background:rgba(45,212,167,.15); color:var(--ok); }
+  .pill.fail { background:rgba(255,107,107,.15); color:var(--bad); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>运维演示面板</h1>
+  <span class="sub">SNS/SQS + 死信队列 · Synthetics 巡检 · 性能 SDK · 日志观测 &nbsp;|&nbsp; 每 3 秒自动刷新</span>
+  <a href="/ops/chat" style="margin-left:auto;color:var(--accent);text-decoration:none;font-size:13.5px;font-weight:600">🤖 AI 运维对话 →</a>
+</header>
+
+<div class="grid">
+  <div class="card span7">
+    <h2><span class="dot" id="mq-dot"></span>消息队列（SNS → SQS → 死信队列）</h2>
+    <div class="btns">
+      <button id="btn-n" onclick="send(false)">发一条正常消息</button>
+      <button id="btn-p" class="danger" onclick="send(true)">发一条毒消息</button>
+      <span class="receipt" id="receipt"></span>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="v num" id="kpi-main">-</div><div class="k">主队列可见</div></div>
+      <div class="kpi"><div class="v num" id="kpi-flight">-</div><div class="k">处理中</div></div>
+      <div class="kpi"><div class="v num bad-text" id="kpi-dlq">-</div><div class="k">死信队列</div></div>
+    </div>
+    <div class="sendlog" id="sendlog"><div class="muted">发送记录（本页会话内）…</div></div>
+    <p class="muted" style="margin-top:10px">毒消息被 worker 拒绝 3 次（可见性超时 10s 重投）后由 SQS 自动移入死信队列——点完毒消息约 30 秒，右上"死信队列"数字 +1。</p>
+  </div>
+
+  <div class="card span5">
+    <h2><span class="dot" id="canary-dot"></span>Synthetics 巡检</h2>
+    <div id="canary-body" class="muted">加载中…</div>
+    <p class="muted" style="margin-top:12px">CloudWatch Synthetics 每 5 分钟从 AWS 侧探测 /healthz 与活动列表接口，非 2xx 即 FAILED。</p>
+  </div>
+
+  <div class="card span7">
+    <h2><span class="dot" id="perf-dot"></span>接口性能（最近 5 分钟实时窗口）</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="perf-total">-</div><div class="k">窗口内请求数</div></div>
+    </div>
+    <table id="perf-table"></table>
+  </div>
+
+  <div class="card span5">
+    <h2><span class="dot ok"></span>ECS 清洗产物（S3 离线聚合，最近 1 小时）</h2>
+    <table id="cleaned-table"></table>
+    <div id="cleaned-meta" class="muted" style="margin-top:10px">暂无——清洗任务跑过后出现</div>
+  </div>
+
+  <div class="card span12">
+    <h2><span class="dot" id="logs-dot"></span>日志观测（性能日志组最近样本，SDK 每 5 秒批量直写 CloudWatch）</h2>
+    <pre id="logs-pre">加载中…</pre>
+  </div>
+</div>
+</div>
+
+<script>
+async function j(url, opts) { const r = await fetch(url, opts); return r.json(); }
+const sends = [];
+
+async function send(poison) {
+  const btn = document.getElementById(poison ? 'btn-p' : 'btn-n');
+  btn.disabled = true;
+  try {
+    const res = await j('/api/ops/publish' + (poison ? '?poison=1' : ''), {method:'POST'});
+    const t = new Date().toLocaleTimeString('zh-CN', {hour12:false});
+    sends.unshift(`<div>[${t}] 已发布 <b class="${poison?'p':'n'}">${res.sent}</b> → SNS</div>`);
+    document.getElementById('sendlog').innerHTML = sends.slice(0, 30).join('');
+    const rc = document.getElementById('receipt');
+    rc.textContent = '✓ 已发送 ' + t;
+    setTimeout(() => { rc.textContent = ''; }, 4000);
+  } catch (e) {
+    document.getElementById('receipt').textContent = '发送失败: ' + e;
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 400);
+  }
+}
+
+function perfRows(list, maxP95) {
+  const head = '<tr><th style="width:38%">接口</th><th>次数</th><th>p50</th><th style="width:26%">p95</th><th>错误率</th></tr>';
+  return head + (list||[]).slice(0,8).map(x => `<tr>
+    <td>${x.path}</td><td class="num">${x.count}</td>
+    <td class="num">${x.p50Ms.toFixed(1)}ms</td>
+    <td class="num">${x.p95Ms.toFixed(1)}ms<div class="bar"><i style="width:${Math.min(100, x.p95Ms/maxP95*100)}%"></i></div></td>
+    <td class="num ${x.errPct>0?'bad-text':''}">${x.errPct.toFixed(1)}%</td></tr>`).join('');
+}
+
+async function refresh() {
+  try {
+    const q = await j('/api/ops/queues');
+    const main = q.queues[0] || {}, dlq = q.queues[1] || {};
+    document.getElementById('kpi-main').textContent = main.configured ? main.visible : '-';
+    document.getElementById('kpi-flight').textContent = main.configured ? main.inFlight : '-';
+    document.getElementById('kpi-dlq').textContent = dlq.configured ? dlq.visible : '-';
+    document.getElementById('mq-dot').className = 'dot ' + (main.configured ? 'ok' : '');
+
+    const c = await j('/api/ops/canary');
+    const cd = document.getElementById('canary-dot');
+    if (!c.configured || !c.runs?.length) {
+      document.getElementById('canary-body').textContent = '暂无巡检任务';
+      cd.className = 'dot';
+    } else {
+      document.getElementById('canary-body').innerHTML = c.runs.map(r =>
+        `<div style="margin-bottom:8px">${r.name}
+         <span class="pill ${r.state==='PASSED'?'pass':'fail'}">${r.state}</span><br>
+         <span class="muted">${r.ranAt||''} ${r.reason?('— '+r.reason.slice(0,120)):''}</span></div>`).join('');
+      cd.className = 'dot ' + (c.runs.every(r => r.state === 'PASSED') ? 'ok' : 'bad');
+    }
+
+    const p = await j('/api/ops/perf');
+    document.getElementById('perf-total').textContent = p.live.total;
+    const maxLive = Math.max(1, ...(p.live.byPath||[]).map(x=>x.p95Ms));
+    document.getElementById('perf-table').innerHTML = perfRows(p.live.byPath, maxLive);
+    document.getElementById('perf-dot').className = 'dot ok';
+    if (p.cleaned && p.cleaned.byPath) {
+      const maxC = Math.max(1, ...p.cleaned.byPath.map(x=>x.p95Ms));
+      document.getElementById('cleaned-table').innerHTML = perfRows(p.cleaned.byPath, maxC);
+      document.getElementById('cleaned-meta').textContent =
+        `聚合时间 ${p.cleaned.generatedAt} · 窗口 ${p.cleaned.windowHours}h · 共 ${p.cleaned.total} 条样本 · 来源 s3://…/aggregates/latest.json`;
+    }
+
+    const l = await j('/api/ops/logs');
+    document.getElementById('logs-pre').textContent = l.configured
+      ? (l.lines||[]).join('\n') || '(暂无样本)' : '未启用（PERF_LOG_GROUP 未设置）';
+    document.getElementById('logs-dot').className = 'dot ' + (l.configured ? 'ok' : '');
+  } catch (e) { /* 单轮刷新失败不打断轮询 */ }
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

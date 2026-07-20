@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 运维对话 · takemefree-go</title>
+<style>
+  :root { --bg:#0b1020; --card:#141b2f; --line:#26314d; --text:#e6ebf5; --dim:#8b98b8;
+          --ok:#2dd4a7; --bad:#ff6b6b; --accent:#5b9dff; --accent2:#7c6bff; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:radial-gradient(1200px 500px at 70% -10%, #16224a 0%, var(--bg) 55%);
+         color:var(--text); font:14px/1.7 -apple-system,"PingFang SC",sans-serif;
+         display:flex; flex-direction:column; height:100vh; }
+  header { padding:16px 26px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; }
+  h1 { font-size:18px; }
+  header a { color:var(--accent); font-size:13px; text-decoration:none; }
+  .muted { color:var(--dim); font-size:12.5px; }
+  #chat { flex:1; overflow-y:auto; padding:22px 0; }
+  .inner { max-width:860px; margin:0 auto; padding:0 20px; }
+  .msg { margin-bottom:16px; display:flex; }
+  .msg.user { justify-content:flex-end; }
+  .bubble { max-width:78%; padding:10px 16px; border-radius:14px; white-space:pre-wrap; word-break:break-word; }
+  .user .bubble { background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; border-bottom-right-radius:4px; }
+  .agent .bubble { background:var(--card); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .step { max-width:78%; font-size:12.5px; color:var(--dim); background:#0e1526; border:1px dashed var(--line);
+          border-radius:10px; padding:8px 14px; margin-bottom:10px; }
+  .step b { color:var(--accent); font-weight:600; }
+  .step .obs { margin-top:5px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; color:#7f8db0;
+               max-height:120px; overflow:auto; white-space:pre-wrap; }
+  .typing { color:var(--dim); font-size:13px; padding:4px 0 0 4px; }
+  footer { border-top:1px solid var(--line); padding:14px 0 18px; }
+  .inputrow { max-width:860px; margin:0 auto; padding:0 20px; display:flex; gap:10px; }
+  input { flex:1; background:var(--card); border:1px solid var(--line); border-radius:10px;
+          color:var(--text); padding:12px 16px; font-size:14px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  button { background:linear-gradient(135deg, var(--accent), var(--accent2)); border:none; color:#fff;
+           font-weight:600; padding:0 22px; border-radius:10px; cursor:pointer; font-size:14px; }
+  button:disabled { filter:grayscale(.6) brightness(.8); cursor:default; }
+  .hints { max-width:860px; margin:6px auto 0; padding:0 20px; display:flex; gap:8px; flex-wrap:wrap; }
+  .hint { font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:16px;
+          padding:3px 12px; cursor:pointer; }
+  .hint:hover { color:var(--accent); border-color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI 运维对话</h1>
+  <span class="muted">agent 会实时调用 CloudWatch / SQS / Synthetics / 性能日志回答你</span>
+  <a href="/ops" style="margin-left:auto">← 返回面板</a>
+</header>
+
+<div id="chat"><div class="inner" id="list">
+  <div class="msg agent"><div class="bubble">你好，我是这套 AWS 环境的运维 agent。可以问我系统状态、告警原因、性能问题——我会现场查真实数据回答。</div></div>
+</div></div>
+
+<footer>
+  <div class="inputrow">
+    <input id="q" placeholder="例如：现在系统整体健康吗？" onkeydown="if(event.key==='Enter')send()">
+    <button id="btn" onclick="send()">发送</button>
+  </div>
+  <div class="hints">
+    <span class="hint" onclick="ask(this)">现在系统整体健康吗？</span>
+    <span class="hint" onclick="ask(this)">死信队列里为什么有消息？</span>
+    <span class="hint" onclick="ask(this)">哪个接口最慢，为什么？</span>
+    <span class="hint" onclick="ask(this)">巡检最近一次结果如何？</span>
+  </div>
+</footer>
+
+<script>
+const list = document.getElementById('list');
+const chat = document.getElementById('chat');
+function ask(el) { document.getElementById('q').value = el.textContent; send(); }
+function el(html) { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
+function scroll() { chat.scrollTop = chat.scrollHeight; }
+
+async function send() {
+  const input = document.getElementById('q'), btn = document.getElementById('btn');
+  const q = input.value.trim();
+  if (!q || btn.disabled) return;
+  input.value = ''; btn.disabled = true;
+  list.appendChild(el(`<div class="msg user"><div class="bubble"></div></div>`)).querySelector('.bubble').textContent = q;
+  const typing = list.appendChild(el(`<div class="typing">agent 正在诊断…</div>`));
+  scroll();
+  try {
+    const resp = await fetch('/api/ops/chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({question: q}),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        if (!chunk.startsWith('data: ')) continue;
+        handle(JSON.parse(chunk.slice(6)));
+      }
+    }
+  } catch (e) {
+    list.appendChild(el(`<div class="msg agent"><div class="bubble" style="color:var(--bad)"></div></div>`))
+        .querySelector('.bubble').textContent = '出错了: ' + e.message;
+  } finally {
+    typing.remove(); btn.disabled = false; scroll();
+  }
+}
+
+function handle(ev) {
+  if (ev.type === 'tool_call') {
+    const s = list.appendChild(el(`<div class="step"><span>🔧 调用 <b></b></span><div class="thought muted"></div></div>`));
+    s.querySelector('b').textContent = ev.tool;
+    s.querySelector('.thought').textContent = ev.thought || '';
+    s.dataset.tool = ev.tool;
+  } else if (ev.type === 'tool_result') {
+    const steps = list.querySelectorAll('.step');
+    const s = steps[steps.length - 1];
+    if (s) { const o = el(`<div class="obs"></div>`); o.textContent = ev.observation; s.appendChild(o); }
+  } else if (ev.type === 'final') {
+    list.appendChild(el(`<div class="msg agent"><div class="bubble"></div></div>`)).querySelector('.bubble').textContent = ev.text;
+  } else if (ev.type === 'error') {
+    list.appendChild(el(`<div class="msg agent"><div class="bubble" style="color:var(--bad)"></div></div>`)).querySelector('.bubble').textContent = ev.text;
+  }
+  scroll();
+}
+</script>
+</body>
+</html>
